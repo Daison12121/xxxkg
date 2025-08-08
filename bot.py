@@ -164,9 +164,10 @@ def main():
         web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
     ])
 
-    # Запускаем aiohttp .
+    # Запускаем aiohttp сервер.
     web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
 
 
 if __name__ == "__main__":
     main()
+ # Fixing encoding issues by editing directly on GitHub
