@@ -108,22 +108,22 @@ def init_bot():
     bot_application.add_handler(CommandHandler("openweb", start_webapp_command))
     bot_application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
     
-    # Set webhook
-    async def setup_webhook():
-        webhook_full_url = WEBHOOK_URL + WEBHOOK_PATH
-        await bot_application.bot.set_webhook(url=webhook_full_url)
-        logging.info(f"Вебхук успешно установлен на URL: {webhook_full_url}")
-    
-    # Run webhook setup in a separate thread
-    def run_webhook_setup():
+    # Set webhook in background (non-blocking)
+    def setup_webhook_background():
+        async def setup_webhook():
+            webhook_full_url = WEBHOOK_URL + WEBHOOK_PATH
+            await bot_application.bot.set_webhook(url=webhook_full_url)
+            logging.info(f"Вебхук успешно установлен на URL: {webhook_full_url}")
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(setup_webhook())
         loop.close()
     
-    setup_thread = threading.Thread(target=run_webhook_setup)
+    # Start webhook setup in background thread (don't wait for it)
+    setup_thread = threading.Thread(target=setup_webhook_background)
+    setup_thread.daemon = True  # Daemon thread won't block app shutdown
     setup_thread.start()
-    setup_thread.join()
     
     logging.info("Bot application инициализирован")
     return bot_application
@@ -133,6 +133,11 @@ def health_check():
     """Health check endpoint."""
     logging.info("Получен запрос на /health")
     return 'OK', 200
+
+@app.before_first_request
+def startup_log():
+    """Log when the first request is received."""
+    logging.info("Flask приложение получило первый запрос - сервер работает!")
 
 @app.route('/')
 def web_app_handler():
