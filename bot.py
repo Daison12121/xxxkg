@@ -145,25 +145,10 @@ def main():
         web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
     ])
 
-    # Добавляем обработчик на старт приложения для установки вебхука
-    async def on_startup(app_instance):
-        try:
-            await app.bot.set_webhook(WEBHOOK_URL)
-            logging.info("Вебхук успешно установлен.")
-        except TelegramError as e:
-            logging.error(f"Ошибка Telegram при установке вебхука: {e}")
-            if "invalid webhook" in str(e):
-                 logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
-                 sys.exit(1)
-        except Exception as e:
-            logging.error("Ошибка при установке вебхука: %s", e)
-            sys.exit(1)
-
-    aiohttp_app.on_startup.append(on_startup)
-
-    # Запускаем aiohttp сервер.
+    # Запускаем aiohttp .
     web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
 
 
 if __name__ == "__main__":
     main()
+ # Fixing encoding issues by editing directly on GitHub
