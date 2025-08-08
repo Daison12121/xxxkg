@@ -134,10 +134,7 @@ def health_check():
     logging.info("Получен запрос на /health")
     return 'OK', 200
 
-@app.before_first_request
-def startup_log():
-    """Log when the first request is received."""
-    logging.info("Flask приложение получило первый запрос - сервер работает!")
+# Removed @app.before_first_request as it's deprecated in newer Flask versions
 
 @app.route('/')
 def web_app_handler():
@@ -224,6 +221,7 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # Initialize bot when module is imported
 init_bot()
+logging.info("Flask приложение готово к работе!")
 
 if __name__ == '__main__':
     logging.info("Запуск Flask веб-сервера...")
