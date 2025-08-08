@@ -218,6 +218,7 @@ async def main():
 
     # Добавляем маршрут для проверки здоровья
     async def health_check(request):
+        logging.info("Получен запрос на /health")
         return web.Response(text='OK', status=200)
     
     server_app.router.add_get('/health', health_check)
@@ -252,9 +253,13 @@ async def main():
     # Эта часть кода нужна, чтобы сервер продолжал работать
     # и не завершал процесс
     try:
-        while True:
-            await asyncio.sleep(3600)  # Спим час
+        # Используем Event для более корректного ожидания
+        stop_event = asyncio.Event()
+        await stop_event.wait()  # Ждем до получения сигнала остановки
+    except KeyboardInterrupt:
+        logging.info("Получен сигнал остановки")
     finally:
+        logging.info("Остановка сервера...")
         await runner.cleanup()
 
     # --- Новая реализация заканчивается здесь ---
