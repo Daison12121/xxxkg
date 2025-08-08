@@ -1,25 +1,26 @@
 import os
 import sys
 import logging
-import asyncio
 from aiohttp import web
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.error import TelegramError
 
-# Загружаем переменные окружения, если файл .env существует.
-# from dotenv import load_dotenv
-# load_dotenv()
+# Set up logging for better visibility
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# Указываем переменные для токена и URL вебхука
+# Load environment variables
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Порт для веб-сервера
-WEB_SERVER_PORT = int(os.getenv("PORT", "8000"))
-WEBHOOK_PATH = "/" # Используем корневой путь для вебхука
+# Define web server settings
+PORT = int(os.getenv("PORT", "8000"))
+WEBHOOK_PATH = f'/{TOKEN}' # Use a specific path for the webhook for security
 
-# Веб-приложение
+# Web App HTML content
 WEB_APP_HTML = """
 <!DOCTYPE html>
 <html>
@@ -81,89 +82,67 @@ WEB_APP_HTML = """
 </html>
 """
 
-# Функция, которая будет отдавать HTML-страницу
+# Handler for the Web App HTML page
 async def web_app_handler(request: web.Request) -> web.Response:
-    """Обрабатывает запросы к корневому URL и отдаёт HTML."""
+    """Handles requests for the Web App and returns the HTML page."""
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
-# Функция для обработки вебхуков от Telegram
+# Handler for incoming Telegram webhooks
 async def telegram_webhook_handler(request: web.Request) -> web.Response:
-    """Обрабатывает вебхуки от Telegram."""
+    """Handles incoming webhooks from Telegram."""
     try:
         data = await request.json()
         update = Update.de_json(data, app.bot)
         await app.process_update(update)
         return web.Response()
     except Exception as e:
-        logging.error("Ошибка при обработке вебхука: %s", e)
+        logging.error("Error processing webhook: %s", e)
         return web.Response(status=500)
 
-# Команда для отправки кнопки Web App
+# Command to send the Web App button
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Отправляет кнопку для открытия Web App."""
-    webapp_url = WEBHOOK_URL
-    if not webapp_url:
-        await update.message.reply_text("Ошибка: WEBHOOK_URL не установлен в переменных окружения. Пожалуйста, проверьте настройки Railway.")
+    """Sends a button to open the Web App."""
+    if not WEBHOOK_URL:
+        await update.message.reply_text("Ошибка: WEBHOOK_URL не установлен. Проверьте переменные окружения на Railway.")
         return
-
+    
+    webapp_url = WEBHOOK_URL.split(WEBHOOK_PATH)[0]
     keyboard = [
         [InlineKeyboardButton("Открыть Web App", web_app=WebAppInfo(url=webapp_url))]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Нажмите кнопку, чтобы открыть Web App:", reply_markup=reply_markup)
 
-# Функция для команды /start
+# Command to handle /start
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обрабатывает команду /start."""
+    """Handles the /start command."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
 def main():
-    """Запускает бота."""
+    """Main function to run the bot."""
     global app
-    logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO
-    )
-
+    
     if not all([TOKEN, WEBHOOK_URL]):
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
         sys.exit(1)
 
     logging.info(f"Используемый WEBHOOK_URL: {WEBHOOK_URL}")
+    logging.info(f"Веб-сервер будет запущен на порту {PORT}")
 
-    # Создаем объект Application
+    # Build the Application
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Добавляем обработчики команд
+    # Add command handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
+    
+    # Configure and run the webhook server
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=WEBHOOK_PATH.strip("/"),
+        webhook_url=WEBHOOK_URL
+    )
 
-    # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
-    aiohttp_app = web.Application()
-    aiohttp_app.add_routes([
-        web.get('/', web_app_handler), # Обработчик для Web App
-        web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
-    ])
-
-    # Добавляем обработчик на старт приложения для установки вебхука
-    async def on_startup(app_instance):
-        try:
-            await app.bot.set_webhook(WEBHOOK_URL)
-            logging.info("Вебхук успешно установлен.")
-        except TelegramError as e:
-            logging.error(f"Ошибка Telegram при установке вебхука: {e}")
-            if "invalid webhook" in str(e):
-                 logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
-                 sys.exit(1)
-        except Exception as e:
-            logging.error("Ошибка при установке вебхука: %s", e)
-            sys.exit(1)
-
-    aiohttp_app.on_startup.append(on_startup)
-
-    # Запускаем aiohttp сервер.
-    web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
