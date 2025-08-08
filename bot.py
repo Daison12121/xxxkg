@@ -134,6 +134,12 @@ def health_check():
     logging.info("Получен запрос на /health")
     return 'OK', 200
 
+@app.route('/ping')
+def ping():
+    """Simple ping endpoint."""
+    logging.info("Получен запрос на /ping")
+    return 'pong', 200
+
 # Removed @app.before_first_request as it's deprecated in newer Flask versions
 
 @app.route('/')
