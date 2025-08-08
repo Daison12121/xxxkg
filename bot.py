@@ -5,6 +5,7 @@ import asyncio
 from aiohttp import web
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.error import TelegramError
 
 # Загружаем переменные окружения, если файл .env существует.
 # from dotenv import load_dotenv
@@ -101,6 +102,10 @@ async def telegram_webhook_handler(request: web.Request) -> web.Response:
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет кнопку для открытия Web App."""
     webapp_url = WEBHOOK_URL
+    if not webapp_url:
+        await update.message.reply_text("Ошибка: WEBHOOK_URL не установлен в переменных окружения. Пожалуйста, проверьте настройки Railway.")
+        return
+
     keyboard = [
         [InlineKeyboardButton("Открыть Web App", web_app=WebAppInfo(url=webapp_url))]
     ]
@@ -114,8 +119,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def setup_webhook():
     """Асинхронная функция для установки вебхука."""
-    await app.bot.set_webhook(WEBHOOK_URL)
-    logging.info("Вебхук успешно установлен.")
+    try:
+        await app.bot.set_webhook(WEBHOOK_URL)
+        logging.info("Вебхук успешно установлен.")
+    except TelegramError as e:
+        logging.error(f"Ошибка Telegram при установке вебхука: {e}")
+        # Проверяем, если URL недействителен, завершаем работу приложения.
+        if "invalid webhook" in str(e):
+             logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
+             sys.exit(1)
 
 def main():
     """Запускает бота."""
