@@ -25,6 +25,10 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", "8000"))
 WEBHOOK_PATH = f'/{TOKEN}'
 
+# Log port information for debugging
+logging.info(f"Environment PORT variable: {os.getenv('PORT', 'Not set')}")
+logging.info(f"Using PORT: {PORT}")
+
 # Web App HTML content
 WEB_APP_HTML = """
 <!DOCTYPE html>
@@ -237,11 +241,13 @@ async def main():
     logging.info(f"Вебхук успешно установлен на URL: {webhook_full_url}")
 
     # Запускаем наш Aiohttp-сервер
+    logging.info(f"Настройка веб-сервера на хосте 0.0.0.0 и порту {PORT}...")
     runner = web.AppRunner(server_app)
     await runner.setup()
     site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
     await site.start()
-    logging.info(f"Веб-сервер запущен на порту {PORT}")
+    logging.info(f"Веб-сервер успешно запущен и слушает на 0.0.0.0:{PORT}")
+    logging.info("Сервер готов принимать запросы!")
 
     # Эта часть кода нужна, чтобы сервер продолжал работать
     # и не завершал процесс
