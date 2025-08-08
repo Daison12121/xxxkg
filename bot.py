@@ -184,6 +184,4 @@ async def main():
 
     # --- Новая реализация заканчивается здесь ---
 
-if __name__ == '__main__':
-    # Запускаем асинхронную main-функцию
-    asyncio.run(main())
+asyncio.run(main())
