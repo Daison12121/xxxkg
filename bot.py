@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import asyncio
 from aiohttp import web
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -111,6 +112,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Обрабатывает команду /start."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
+async def setup_webhook():
+    """Асинхронная функция для установки вебхука."""
+    await app.bot.set_webhook(WEBHOOK_URL)
+    logging.info("Вебхук успешно установлен.")
+
 def main():
     """Запускает бота."""
     global app
@@ -123,7 +129,7 @@ def main():
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
         sys.exit(1)
 
-    # Создаем объект Application и настраиваем вебхук
+    # Создаем объект Application
     app = ApplicationBuilder().token(TOKEN).build()
     
     # Добавляем обработчики команд
@@ -137,8 +143,12 @@ def main():
         web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
     ])
 
-    # Устанавливаем вебхук на сервере Telegram
-    app.bot.set_webhook(WEBHOOK_URL)
+    # Асинхронно устанавливаем вебхук перед запуском сервера
+    try:
+        asyncio.run(setup_webhook())
+    except Exception as e:
+        logging.error("Ошибка при установке вебхука: %s", e)
+        sys.exit(1)
 
     # Запускаем aiohttp сервер
     web.run_app(aiohttp_app, port=WEB_SERVER_PORT)
