@@ -18,7 +18,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # Define web server settings
 PORT = int(os.getenv("PORT", "8000"))
-# Use a specific path for the webhook for security. Telegram will send updates to this path.
 WEBHOOK_PATH = f'/{TOKEN}'
 
 # Web App HTML content
@@ -83,25 +82,35 @@ WEB_APP_HTML = """
 </html>
 """
 
-# Handler for the Web App HTML page
+# Handler for the Web App HTML page (GET request to '/')
 async def web_app_handler(request: web.Request) -> web.Response:
     """Handles requests for the Web App and returns the HTML page."""
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
-# Handler for incoming Telegram webhooks
+# Handler for incoming Telegram webhooks (POST request to '/{TOKEN}')
 async def telegram_webhook_handler(request: web.Request) -> web.Response:
     """
     Handles incoming webhooks from Telegram.
     This function will be called for all POST requests to the WEBHOOK_PATH.
     """
     try:
+        # Get the bot from the app context
+        app = request.app['bot_application']
+        
+        # Read the JSON body from the request
         data = await request.json()
+        
+        # Create an Update object from the JSON data
         update = Update.de_json(data, app.bot)
+        
+        # Process the update with the bot application
         await app.process_update(update)
-        return web.Response()
+        
+        # Return a success response
+        return web.Response(text='OK')
     except Exception as e:
         logging.error("Error processing webhook: %s", e)
-        return web.Response(status=500)
+        return web.Response(status=500, text=f'Error: {e}')
 
 # Command to send the Web App button
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -110,7 +119,7 @@ async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("Ошибка: WEBHOOK_URL не установлен. Проверьте переменные окружения на Railway.")
         return
     
-    # The URL for the web app is the base URL without the webhook path
+    # The URL for the web app is the base URL
     webapp_url = WEBHOOK_URL.split(WEBHOOK_PATH)[0]
     keyboard = [
         [InlineKeyboardButton("Открыть Web App", web_app=WebAppInfo(url=webapp_url))]
@@ -125,7 +134,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 def main():
     """Main function to run the bot."""
-    global app
     
     if not all([TOKEN, WEBHOOK_URL]):
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
@@ -140,23 +148,31 @@ def main():
     # Add command handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
-    
-    # --- Изменения начинаются здесь ---
+
+    # --- Новая реализация начинается здесь ---
     # Создаём Aiohttp-приложение, чтобы контролировать маршруты
     server_app = web.Application()
-    
+
     # Добавляем маршрут для Web App (GET-запросы на корневой URL)
     server_app.router.add_get('/', web_app_handler)
     
-    # Запускаем Application в режиме вебхука, используя созданный нами сервер
-    app.run_webhook(
+    # Добавляем маршрут для вебхука (POST-запросы на WEBHOOK_PATH)
+    server_app.router.add_post(WEBHOOK_PATH, telegram_webhook_handler)
+
+    # Сохраняем экземпляр Application в приложении Aiohttp
+    server_app['bot_application'] = app
+
+    # Устанавливаем вебхук в Telegram
+    app.updater.start_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=WEBHOOK_PATH.strip("/"),
-        webhook_url=WEBHOOK_URL,
-        webhook_server=server_app # Передаем наш настроенный сервер
+        webhook_url=WEBHOOK_URL
     )
-    # --- Изменения заканчиваются здесь ---
+
+    # Запускаем наш Aiohttp-сервер
+    web.run_app(server_app, port=PORT, host="0.0.0.0")
+    # --- Новая реализация заканчивается здесь ---
 
 if __name__ == '__main__':
     main()
