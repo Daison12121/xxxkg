@@ -105,18 +105,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Обрабатывает команду /start."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
-async def setup_webhook():
-    """Асинхронная функция для установки вебхука."""
-    try:
-        await app.bot.set_webhook(WEBHOOK_URL)
-        logging.info("Вебхук успешно установлен.")
-    except TelegramError as e:
-        logging.error(f"Ошибка Telegram при установке вебхука: {e}")
-        # Проверяем, если URL недействителен, завершаем работу приложения.
-        if "invalid webhook" in str(e):
-             logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
-             sys.exit(1)
-
 def main():
     """Запускает бота."""
     global app
@@ -138,23 +126,17 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
-    aiohttp_app = web.Application()
-    aiohttp_app.add_routes([
-        web.get('/', web_app_handler), # Обработчик для Web App
-        web.post(WEBHOOK_PATH, app.post_update_handler) # ОБРАБОТЧИК ДЛЯ ВЕБХУКОВ
-    ])
-
-    # Асинхронно устанавливаем вебхук перед запуском сервера
-    try:
-        asyncio.run(setup_webhook())
-    except Exception as e:
-        logging.error("Ошибка при установке вебхука: %s", e)
-        sys.exit(1)
-
-    # Запускаем aiohttp сервер. Важно явно указать хост и порт.
+    # Запускаем приложение в режиме вебхука
     # Railway использует переменную окружения PORT для указания порта, который должен слушать сервис.
-    web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
+    # Обработчики вебхуков и HTML-страницы теперь будут работать корректно.
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=WEB_SERVER_PORT,
+        url_path=WEBHOOK_PATH,
+        webhook_url=WEBHOOK_URL,
+        on_startup=web_app_handler, # Запускаем aiohttp приложение, которое будет обслуживать веб-приложение
+    )
+
 
 if __name__ == "__main__":
     main()
