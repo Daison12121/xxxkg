@@ -15,6 +15,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # Порт для веб-сервера
 WEB_SERVER_PORT = int(os.getenv("PORT", "8000"))
+WEBHOOK_PATH = "/" # Используем корневой путь для вебхука
 
 # Веб-приложение
 WEB_APP_HTML = """
@@ -83,6 +84,18 @@ async def web_app_handler(request: web.Request) -> web.Response:
     """Обрабатывает запросы к корневому URL и отдаёт HTML."""
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
+# Функция для обработки вебхуков от Telegram
+async def telegram_webhook_handler(request: web.Request) -> web.Response:
+    """Обрабатывает вебхуки от Telegram."""
+    try:
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update)
+        return web.Response()
+    except Exception as e:
+        logging.error("Ошибка при обработке вебхука: %s", e)
+        return web.Response(status=500)
+
 # Команда для отправки кнопки Web App
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет кнопку для открытия Web App."""
@@ -100,6 +113,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 def main():
     """Запускает бота."""
+    global app
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
@@ -109,9 +123,7 @@ def main():
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
         sys.exit(1)
 
-    # Создаем объект Application
-    # Мы указываем url_path, чтобы вебхуки обрабатывались по конкретному пути
-    # Это позволяет нам добавить другие маршруты для Web App
+    # Создаем объект Application и настраиваем вебхук
     app = ApplicationBuilder().token(TOKEN).build()
     
     # Добавляем обработчики команд
@@ -121,11 +133,14 @@ def main():
     # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
     aiohttp_app = web.Application()
     aiohttp_app.add_routes([
-        web.get('/', web_app_handler),
-        web.post('/', app.update_processor)
+        web.get('/', web_app_handler), # Обработчик для Web App
+        web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
     ])
 
-    # Запускаем aiohttp сервер. Telegram будет отправлять запросы на него
+    # Устанавливаем вебхук на сервере Telegram
+    app.bot.set_webhook(WEBHOOK_URL)
+
+    # Запускаем aiohttp сервер
     web.run_app(aiohttp_app, port=WEB_SERVER_PORT)
 
 if __name__ == "__main__":
