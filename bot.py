@@ -129,8 +129,8 @@ async def setup_webhook():
              logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
              sys.exit(1)
 
-def main():
-    """Запускает бота."""
+async def main_async():
+    """Асинхронная основная функция для запуска бота."""
     global app
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -150,12 +150,8 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Асинхронно устанавливаем вебхук перед запуском сервера
-    try:
-        asyncio.run(setup_webhook())
-    except Exception as e:
-        logging.error("Ошибка при установке вебхука: %s", e)
-        sys.exit(1)
+    # Устанавливаем вебхук
+    await setup_webhook()
 
     # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
     aiohttp_app = web.Application()
@@ -165,8 +161,22 @@ def main():
     ])
 
     # Запускаем aiohttp сервер.
-    web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
+    runner = web.AppRunner(aiohttp_app)
+    await runner.setup()
+    site = web.TCPSite(runner, host='0.0.0.0', port=WEB_SERVER_PORT)
+    await site.start()
 
+    # Запускаем бота, чтобы он обрабатывал обновления
+    # Это предотвратит завершение асинхронного цикла событий.
+    await app.updater.start_polling()
+
+def main():
+    """Запускает асинхронную основную функцию."""
+    try:
+        asyncio.run(main_async())
+    except Exception as e:
+        logging.error("Ошибка при запуске приложения: %s", e)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
