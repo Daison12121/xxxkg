@@ -90,6 +90,7 @@ WEB_APP_HTML = """
 # Handler for the Web App HTML page (GET request to '/')
 async def web_app_handler(request: web.Request) -> web.Response:
     """Handles requests for the Web App and returns the HTML page."""
+    logging.info("Получен GET-запрос на главную страницу Web App")
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
 # Handler for incoming Telegram webhooks (POST request to '/{TOKEN}')
@@ -179,27 +180,45 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 async def main():
     """Main function to run the bot."""
     
+    # Подробная диагностика переменных окружения
+    logging.info(f"BOT_TOKEN установлен: {'Да' if TOKEN else 'Нет'}")
+    logging.info(f"WEBHOOK_URL установлен: {'Да' if WEBHOOK_URL else 'Нет'}")
+    logging.info(f"PORT: {PORT}")
+    
     if not all([TOKEN, WEBHOOK_URL]):
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
+        logging.error(f"TOKEN: {TOKEN[:10] + '...' if TOKEN else 'None'}")
+        logging.error(f"WEBHOOK_URL: {WEBHOOK_URL}")
         sys.exit(1)
 
     logging.info(f"Используемый WEBHOOK_URL: {WEBHOOK_URL}")
     logging.info(f"Веб-сервер будет запущен на порту {PORT}")
 
     # Build the Application
+    logging.info("Создание Telegram Application...")
     app = ApplicationBuilder().token(TOKEN).build()
+    logging.info("Telegram Application создан успешно")
 
     # Add command handlers
+    logging.info("Добавление обработчиков команд...")
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
     
     # Add handler for Web App data
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
+    logging.info("Обработчики команд добавлены успешно")
 
     # --- Новая реализация начинается здесь ---
     # Создаём Aiohttp-приложение, чтобы контролировать маршруты
     server_app = web.Application()
 
+    # Добавляем маршрут для проверки здоровья
+    async def health_check(request):
+        return web.Response(text='OK', status=200)
+    
+    server_app.router.add_get('/health', health_check)
+    logging.info("Добавлен маршрут GET /health для проверки здоровья")
+    
     # Добавляем маршрут для Web App (GET-запросы на корневой URL)
     server_app.router.add_get('/', web_app_handler)
     logging.info("Добавлен маршрут GET / для Web App")
