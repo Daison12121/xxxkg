@@ -128,6 +128,8 @@ def main():
     if not all([TOKEN, WEBHOOK_URL]):
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
         sys.exit(1)
+        
+    logging.info(f"Используемый WEBHOOK_URL: {WEBHOOK_URL}")
 
     # Создаем объект Application
     app = ApplicationBuilder().token(TOKEN).build()
@@ -150,8 +152,9 @@ def main():
         logging.error("Ошибка при установке вебхука: %s", e)
         sys.exit(1)
 
-    # Запускаем aiohttp сервер
-    web.run_app(aiohttp_app, port=WEB_SERVER_PORT)
+    # Запускаем aiohttp сервер. Важно явно указать хост и порт.
+    # Railway использует переменную окружения PORT для указания порта, который должен слушать сервис.
+    web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
 
 if __name__ == "__main__":
     main()
