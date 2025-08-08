@@ -112,18 +112,15 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
-    aiohttp_app = web.Application()
-    # Добавляем маршрут, чтобы оно отдавало наш HTML
-    aiohttp_app.router.add_get('/', web_app_handler)
+    # Добавляем маршрут для нашего веб-приложения во встроенный веб-сервер
+    app.updater.web_app.router.add_get("/", web_app_handler)
 
-    # Запускаем бота, передавая ему наше aiohttp приложение в качестве веб-сервера
+    # Запускаем бота в режиме вебхука без аргумента web_server
     app.run_webhook(
         listen="0.0.0.0",
         port=WEB_SERVER_PORT,
         url_path="",
-        webhook_url=WEBHOOK_URL,
-        web_server=aiohttp_app  # Исправлено: теперь мы передаем aiohttp_app
+        webhook_url=WEBHOOK_URL
     )
 
 if __name__ == "__main__":
