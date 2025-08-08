@@ -63,13 +63,13 @@ def init_bot():
 @app.route('/health')
 def health_check():
     """Health check endpoint."""
-    logging.info("Получен запрос на /health")
+    logging.info("=== ПОЛУЧЕН ЗАПРОС НА /health ===")
     return 'OK', 200
 
 @app.route('/')
 def home():
     """Home page."""
-    logging.info("Получен запрос на главную страницу")
+    logging.info("=== ПОЛУЧЕН ЗАПРОС НА ГЛАВНУЮ СТРАНИЦУ ===")
     return 'Telegram Bot is running!'
 
 @app.route(WEBHOOK_PATH, methods=['POST'])
@@ -122,4 +122,6 @@ logging.info("Простой бот готов к работе!")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    logging.info(f"Запуск Flask сервера на порту: {port}")
+    logging.info(f"Переменная PORT из окружения: {os.environ.get('PORT', 'НЕ УСТАНОВЛЕНА')}")
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
