@@ -51,14 +51,23 @@ class SimpleHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
-    logging.info(f"=== ЗАПУСК ПРОСТОГО HTTP СЕРВЕРА НА ПОРТУ: {port} ===")
+    host = '0.0.0.0'
     
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
-    
-    logging.info(f"=== СЕРВЕР ГОТОВ К РАБОТЕ НА http://0.0.0.0:{port} ===")
+    logging.info(f"=== ЗАПУСК ПРОСТОГО HTTP СЕРВЕРА ===")
+    logging.info(f"=== HOST: {host} ===")
+    logging.info(f"=== PORT: {port} ===")
+    logging.info(f"=== RAILWAY_ENVIRONMENT: {os.environ.get('RAILWAY_ENVIRONMENT', 'НЕ УСТАНОВЛЕНА')} ===")
     
     try:
+        server = HTTPServer((host, port), SimpleHandler)
+        logging.info(f"=== СЕРВЕР СОЗДАН УСПЕШНО ===")
+        logging.info(f"=== АДРЕС СЕРВЕРА: {server.server_address} ===")
+        logging.info(f"=== СЕРВЕР ГОТОВ К РАБОТЕ НА http://{host}:{port} ===")
+        
         server.serve_forever()
+    except Exception as e:
+        logging.error(f"=== ОШИБКА ЗАПУСКА СЕРВЕРА: {e} ===")
+        raise
     except KeyboardInterrupt:
         logging.info("=== СЕРВЕР ОСТАНОВЛЕН ===")
         server.server_close()
