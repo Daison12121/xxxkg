@@ -113,7 +113,8 @@ def main():
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
     # Добавляем маршрут для нашего веб-приложения во встроенный веб-сервер
-    app.updater.web_app.router.add_get("/", web_app_handler)
+    # Исправлено: теперь мы используем app.web_app вместо app.updater.web_app
+    app.web_app.router.add_get("/", web_app_handler)
 
     # Запускаем бота в режиме вебхука без аргумента web_server
     app.run_webhook(
