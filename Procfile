@@ -1,1 +1,1 @@
-web: gunicorn test_server:app --bind 0.0.0.0:$PORT
+web: gunicorn debug_env:app --bind 0.0.0.0:$PORT
