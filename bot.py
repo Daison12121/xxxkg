@@ -116,7 +116,7 @@ async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYP
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает команду /start."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
-    
+
 async def setup_webhook():
     """Асинхронная функция для установки вебхука."""
     try:
@@ -140,12 +140,12 @@ def main():
     if not all([TOKEN, WEBHOOK_URL]):
         logging.error("Не установлены обязательные переменные окружения: BOT_TOKEN, WEBHOOK_URL.")
         sys.exit(1)
-        
+
     logging.info(f"Используемый WEBHOOK_URL: {WEBHOOK_URL}")
 
     # Создаем объект Application
     app = ApplicationBuilder().token(TOKEN).build()
-    
+
     # Добавляем обработчики команд
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
@@ -164,7 +164,7 @@ def main():
         web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
     ])
 
-    # Запускаем aiohttp сервер.
+    # Запускаем aiohttp .
     web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
 
 
