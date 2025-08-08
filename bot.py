@@ -1,9 +1,11 @@
 import os
 import sys
 import logging
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from aiohttp import web
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ExtBot
+from telegram.ext._asyncio_web_app import WebAppMessageHandler
+from telegram.ext.callbackcontext import CallbackContext
 
 # Загружаем переменные окружения, если файл .env существует.
 # from dotenv import load_dotenv
@@ -79,11 +81,13 @@ WEB_APP_HTML = """
 """
 
 # Функция, которая будет отдавать HTML-страницу
-async def web_app_handler(request):
+async def web_app_handler(request: web.Request) -> web.Response:
+    """Обрабатывает запросы к корневому URL и отдаёт HTML."""
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
 # Команда для отправки кнопки Web App
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Отправляет кнопку для открытия Web App."""
     webapp_url = WEBHOOK_URL
     keyboard = [
         [InlineKeyboardButton("Открыть Web App", web_app=WebAppInfo(url=webapp_url))]
@@ -93,9 +97,11 @@ async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # Функция для команды /start
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обрабатывает команду /start."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
 def main():
+    """Запускает бота."""
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
@@ -106,23 +112,23 @@ def main():
         sys.exit(1)
 
     # Создаем объект Application
-    app = ApplicationBuilder().token(TOKEN).build()
+    # Мы указываем url_path, чтобы вебхуки обрабатывались по конкретному пути
+    # Это позволяет нам добавить другие маршруты для Web App
+    app = ApplicationBuilder().token(TOKEN).webhook_url(WEBHOOK_URL).build()
     
     # Добавляем обработчики команд
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Добавляем маршрут для нашего веб-приложения во встроенный веб-сервер
-    # Исправлено: теперь мы используем app.web_app вместо app.updater.web_app
-    app.web_app.router.add_get("/", web_app_handler)
+    # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
+    aiohttp_app = web.Application()
+    aiohttp_app.add_routes([
+        web.get('/', web_app_handler),
+        web.post('/', app.update_processor)
+    ])
 
-    # Запускаем бота в режиме вебхука без аргумента web_server
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=WEB_SERVER_PORT,
-        url_path="",
-        webhook_url=WEBHOOK_URL
-    )
+    # Запускаем aiohttp сервер. Telegram будет отправлять запросы на него
+    web.run_app(aiohttp_app, port=WEB_SERVER_PORT)
 
 if __name__ == "__main__":
     main()
