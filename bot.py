@@ -116,6 +116,18 @@ async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYP
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает команду /start."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
+    
+async def setup_webhook():
+    """Асинхронная функция для установки вебхука."""
+    try:
+        await app.bot.set_webhook(WEBHOOK_URL)
+        logging.info("Вебхук успешно установлен.")
+    except TelegramError as e:
+        logging.error(f"Ошибка Telegram при установке вебхука: {e}")
+        # Проверяем, если URL недействителен, завершаем работу приложения.
+        if "invalid webhook" in str(e):
+             logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
+             sys.exit(1)
 
 def main():
     """Запускает бота."""
@@ -137,6 +149,13 @@ def main():
     # Добавляем обработчики команд
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
+
+    # Асинхронно устанавливаем вебхук перед запуском сервера
+    try:
+        asyncio.run(setup_webhook())
+    except Exception as e:
+        logging.error("Ошибка при установке вебхука: %s", e)
+        sys.exit(1)
 
     # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
     aiohttp_app = web.Application()
