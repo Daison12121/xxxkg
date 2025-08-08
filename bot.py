@@ -86,6 +86,18 @@ async def web_app_handler(request: web.Request) -> web.Response:
     """Обрабатывает запросы к корневому URL и отдаёт HTML."""
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
+# Функция для обработки вебхуков от Telegram
+async def telegram_webhook_handler(request: web.Request) -> web.Response:
+    """Обрабатывает вебхуки от Telegram."""
+    try:
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update)
+        return web.Response()
+    except Exception as e:
+        logging.error("Ошибка при обработке вебхука: %s", e)
+        return web.Response(status=500)
+
 # Команда для отправки кнопки Web App
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет кнопку для открытия Web App."""
@@ -126,16 +138,15 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Запускаем приложение в режиме вебхука
-    # Railway использует переменную окружения PORT для указания порта, который должен слушать сервис.
-    # Обработчики вебхуков и HTML-страницы теперь будут работать корректно.
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=WEB_SERVER_PORT,
-        url_path=WEBHOOK_PATH,
-        webhook_url=WEBHOOK_URL,
-        on_startup=web_app_handler, # Запускаем aiohttp приложение, которое будет обслуживать веб-приложение
-    )
+    # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
+    aiohttp_app = web.Application()
+    aiohttp_app.add_routes([
+        web.get('/', web_app_handler), # Обработчик для Web App
+        web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
+    ])
+
+    # Запускаем aiohttp сервер.
+    web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
 
 
 if __name__ == "__main__":
