@@ -3,9 +3,7 @@ import sys
 import logging
 from aiohttp import web
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ExtBot
-from telegram.ext._asyncio_web_app import WebAppMessageHandler
-from telegram.ext.callbackcontext import CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # Загружаем переменные окружения, если файл .env существует.
 # from dotenv import load_dotenv
@@ -114,7 +112,7 @@ def main():
     # Создаем объект Application
     # Мы указываем url_path, чтобы вебхуки обрабатывались по конкретному пути
     # Это позволяет нам добавить другие маршруты для Web App
-    app = ApplicationBuilder().token(TOKEN).webhook_url(WEBHOOK_URL).build()
+    app = ApplicationBuilder().token(TOKEN).build()
     
     # Добавляем обработчики команд
     app.add_handler(CommandHandler("start", start_command))
