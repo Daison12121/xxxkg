@@ -2,12 +2,11 @@ import os
 import sys
 import logging
 import asyncio
-from flask import Flask, request, jsonify
+from aiohttp import web
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 from telegram.error import TelegramError
 from dotenv import load_dotenv
-import threading
 
 # Load environment variables from .env file
 load_dotenv()
@@ -92,58 +91,42 @@ WEB_APP_HTML = """
 </html>
 """
 
-# Create Flask app
-app = Flask(__name__)
-
-# Global variable to store the bot application
-bot_application = None
-
-@app.route('/health')
-def health_check():
-    """Health check endpoint."""
-    logging.info("Получен запрос на /health")
-    return 'OK', 200
-
-@app.route('/')
-def web_app_handler():
+# Handler for the Web App HTML page (GET request to '/')
+async def web_app_handler(request: web.Request) -> web.Response:
     """Handles requests for the Web App and returns the HTML page."""
     logging.info("Получен GET-запрос на главную страницу Web App")
-    return WEB_APP_HTML
+    return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
-@app.route(WEBHOOK_PATH, methods=['POST'])
-def telegram_webhook_handler():
+# Handler for incoming Telegram webhooks (POST request to '/{TOKEN}')
+async def telegram_webhook_handler(request: web.Request) -> web.Response:
     """
     Handles incoming webhooks from Telegram.
     This function will be called for all POST requests to the WEBHOOK_PATH.
     """
     try:
-        # Get the JSON body from the request
-        data = request.get_json()
+        # Get the bot from the app context
+        app = request.app['bot_application']
+        
+        # Read the JSON body from the request
+        data = await request.json()
         logging.info(f"Получен вебхук от Telegram: {data.get('update_id', 'unknown')}")
         
         # Create an Update object from the JSON data
-        update = Update.de_json(data, bot_application.bot)
+        update = Update.de_json(data, app.bot)
         
         if not update:
             logging.warning("Не удалось создать объект Update из данных вебхука")
-            return 'Invalid update data', 400
+            return web.Response(status=400, text='Invalid update data')
         
-        # Process the update with the bot application in a separate thread
-        def process_update():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(bot_application.process_update(update))
-            loop.close()
-        
-        thread = threading.Thread(target=process_update)
-        thread.start()
-        
+        # Process the update with the bot application
+        await app.process_update(update)
         logging.info("Вебхук обработан успешно")
-        return 'OK'
         
+        # Return a success response
+        return web.Response(text='OK')
     except Exception as e:
         logging.error("Ошибка при обработке вебхука: %s", e, exc_info=True)
-        return f'Error: {e}', 500
+        return web.Response(status=500, text=f'Error: {e}')
 
 # Command to send the Web App button
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -198,9 +181,8 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logging.error(f"Ошибка при обработке данных Web App: {e}")
         await update.message.reply_text("Ошибка при обработке данных от Web App.")
 
-async def setup_bot():
-    """Setup the bot application."""
-    global bot_application
+async def main():
+    """Main function to run the bot."""
     
     # Подробная диагностика переменных окружения
     logging.info(f"BOT_TOKEN установлен: {'Да' if TOKEN else 'Нет'}")
@@ -218,39 +200,68 @@ async def setup_bot():
 
     # Build the Application
     logging.info("Создание Telegram Application...")
-    bot_application = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
     logging.info("Telegram Application создан успешно")
 
     # Add command handlers
     logging.info("Добавление обработчиков команд...")
-    bot_application.add_handler(CommandHandler("start", start_command))
-    bot_application.add_handler(CommandHandler("openweb", start_webapp_command))
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("openweb", start_webapp_command))
     
     # Add handler for Web App data
-    bot_application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
+    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
     logging.info("Обработчики команд добавлены успешно")
+
+    # --- Новая реализация начинается здесь ---
+    # Создаём Aiohttp-приложение, чтобы контролировать маршруты
+    server_app = web.Application()
+
+    # Добавляем маршрут для проверки здоровья
+    async def health_check(request):
+        logging.info("Получен запрос на /health")
+        return web.Response(text='OK', status=200)
+    
+    server_app.router.add_get('/health', health_check)
+    logging.info("Добавлен маршрут GET /health для проверки здоровья")
+    
+    # Добавляем маршрут для Web App (GET-запросы на корневой URL)
+    server_app.router.add_get('/', web_app_handler)
+    logging.info("Добавлен маршрут GET / для Web App")
+    
+    # Добавляем маршрут для вебхука (POST-запросы на WEBHOOK_PATH)
+    server_app.router.add_post(WEBHOOK_PATH, telegram_webhook_handler)
+    logging.info(f"Добавлен маршрут POST {WEBHOOK_PATH} для вебхука")
+
+    # Сохраняем экземпляр Application в приложении Aiohttp
+    server_app['bot_application'] = app
 
     # Устанавливаем вебхук в Telegram асинхронно
     # Полный URL для вебхука включает путь с токеном
     webhook_full_url = WEBHOOK_URL + WEBHOOK_PATH
-    await bot_application.bot.set_webhook(url=webhook_full_url)
+    await app.bot.set_webhook(url=webhook_full_url)
     logging.info(f"Вебхук успешно установлен на URL: {webhook_full_url}")
 
-def run_bot_setup():
-    """Run bot setup in async context."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(setup_bot())
-    loop.close()
+    # Запускаем наш Aiohttp-сервер
+    logging.info(f"Настройка веб-сервера на хосте 0.0.0.0 и порту {PORT}...")
+    runner = web.AppRunner(server_app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    await site.start()
+    logging.info(f"Веб-сервер успешно запущен и слушает на 0.0.0.0:{PORT}")
+    logging.info("Сервер готов принимать запросы!")
 
-if __name__ == '__main__':
-    # Setup bot in a separate thread
-    setup_thread = threading.Thread(target=run_bot_setup)
-    setup_thread.start()
-    setup_thread.join()
-    
-    logging.info("Запуск Flask веб-сервера...")
-    logging.info(f"Сервер готов принимать запросы на порту {PORT}!")
-    
-    # Run Flask app
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+    # Эта часть кода нужна, чтобы сервер продолжал работать
+    # и не завершал процесс
+    try:
+        # Используем Event для более корректного ожидания
+        stop_event = asyncio.Event()
+        await stop_event.wait()  # Ждем до получения сигнала остановки
+    except KeyboardInterrupt:
+        logging.info("Получен сигнал остановки")
+    finally:
+        logging.info("Остановка сервера...")
+        await runner.cleanup()
+
+    # --- Новая реализация заканчивается здесь ---
+
+asyncio.run(main())
