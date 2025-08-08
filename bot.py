@@ -86,18 +86,6 @@ async def web_app_handler(request: web.Request) -> web.Response:
     """Обрабатывает запросы к корневому URL и отдаёт HTML."""
     return web.Response(text=WEB_APP_HTML, content_type='text/html')
 
-# Функция для обработки вебхуков от Telegram
-async def telegram_webhook_handler(request: web.Request) -> web.Response:
-    """Обрабатывает вебхуки от Telegram."""
-    try:
-        data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.process_update(update)
-        return web.Response()
-    except Exception as e:
-        logging.error("Ошибка при обработке вебхука: %s", e)
-        return web.Response(status=500)
-
 # Команда для отправки кнопки Web App
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет кнопку для открытия Web App."""
@@ -154,7 +142,7 @@ def main():
     aiohttp_app = web.Application()
     aiohttp_app.add_routes([
         web.get('/', web_app_handler), # Обработчик для Web App
-        web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
+        web.post(WEBHOOK_PATH, app.post_update_handler) # ОБРАБОТЧИК ДЛЯ ВЕБХУКОВ
     ])
 
     # Асинхронно устанавливаем вебхук перед запуском сервера
