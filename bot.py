@@ -6,21 +6,17 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from aiohttp import web
 
 # Загружаем переменные окружения, если файл .env существует.
-# Это полезно для локальной разработки, на Railway они загружаются автоматически.
 # from dotenv import load_dotenv
 # load_dotenv()
 
 # Указываем переменные для токена и URL вебхука
-# Railway будет предоставлять эти переменные автоматически
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Порт для веб-сервера, который будет обслуживать веб-приложение.
-# Должен совпадать с портом, который вы указали на Railway.
+# Порт для веб-сервера
 WEB_SERVER_PORT = int(os.getenv("PORT", "8000"))
 
 # Веб-приложение
-# Это простой HTML-код, который будет отображаться у пользователя
 WEB_APP_HTML = """
 <!DOCTYPE html>
 <html>
@@ -88,7 +84,6 @@ async def web_app_handler(request):
 
 # Команда для отправки кнопки Web App
 async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # URL веб-приложения будет таким же, как и у вебхука, но без дополнительных путей
     webapp_url = WEBHOOK_URL
     keyboard = [
         [InlineKeyboardButton("Открыть Web App", web_app=WebAppInfo(url=webapp_url))]
@@ -101,7 +96,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
 def main():
-    # Настраиваем логирование, чтобы видеть, что происходит с приложением
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
@@ -118,15 +112,18 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Настраиваем веб-сервер для обработки вебхуков и отдачи Web App
-    # Мы используем встроенные средства ApplicationBuilder, чтобы не запускать отдельный сервер.
+    # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
+    aiohttp_app = web.Application()
+    # Добавляем маршрут, чтобы оно отдавало наш HTML
+    aiohttp_app.router.add_get('/', web_app_handler)
+
+    # Запускаем бота, передавая ему наше aiohttp приложение в качестве веб-сервера
     app.run_webhook(
         listen="0.0.0.0",
         port=WEB_SERVER_PORT,
         url_path="",
         webhook_url=WEBHOOK_URL,
-        # Здесь мы добавляем маршрут для нашего веб-приложения
-        on_startup=web_app_handler
+        web_server=aiohttp_app  # Исправлено: теперь мы передаем aiohttp_app
     )
 
 if __name__ == "__main__":
