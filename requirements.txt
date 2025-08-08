@@ -2,3 +2,4 @@ python-telegram-bot[webhooks]==21.9
 aiohttp
 python-dotenv
 flask
+gunicorn
