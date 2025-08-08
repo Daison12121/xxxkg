@@ -14,10 +14,6 @@ app = Flask(__name__)
 logging.info("=== FLASK ПРИЛОЖЕНИЕ ИНИЦИАЛИЗИРОВАНО ===")
 logging.info(f"=== PORT из окружения: {os.environ.get('PORT', 'НЕ УСТАНОВЛЕНА')} ===")
 
-@app.before_first_request
-def startup_log():
-    logging.info("=== ПЕРВЫЙ ЗАПРОС ПОЛУЧЕН - ПРИЛОЖЕНИЕ ГОТОВО ===")
-
 # Добавляем простой health check
 @app.before_request
 def log_request():
