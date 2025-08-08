@@ -117,18 +117,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Обрабатывает команду /start."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
-async def setup_webhook():
-    """Асинхронная функция для установки вебхука."""
-    try:
-        await app.bot.set_webhook(WEBHOOK_URL)
-        logging.info("Вебхук успешно установлен.")
-    except TelegramError as e:
-        logging.error(f"Ошибка Telegram при установке вебхука: {e}")
-        # Проверяем, если URL недействителен, завершаем работу приложения.
-        if "invalid webhook" in str(e):
-             logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
-             sys.exit(1)
-
 def main():
     """Запускает бота."""
     global app
@@ -150,13 +138,6 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
 
-    # Асинхронно устанавливаем вебхук перед запуском сервера
-    try:
-        asyncio.run(setup_webhook())
-    except Exception as e:
-        logging.error("Ошибка при установке вебхука: %s", e)
-        sys.exit(1)
-
     # Создаем aiohttp приложение, которое будет обслуживать веб-приложение
     aiohttp_app = web.Application()
     aiohttp_app.add_routes([
@@ -164,7 +145,23 @@ def main():
         web.post(WEBHOOK_PATH, telegram_webhook_handler) # Обработчик для вебхуков
     ])
 
-    # Запускаем aiohttp .
+    # Добавляем обработчик на старт приложения для установки вебхука
+    async def on_startup(app_instance):
+        try:
+            await app.bot.set_webhook(WEBHOOK_URL)
+            logging.info("Вебхук успешно установлен.")
+        except TelegramError as e:
+            logging.error(f"Ошибка Telegram при установке вебхука: {e}")
+            if "invalid webhook" in str(e):
+                 logging.error("Недействительный URL вебхука. Пожалуйста, проверьте переменную окружения WEBHOOK_URL.")
+                 sys.exit(1)
+        except Exception as e:
+            logging.error("Ошибка при установке вебхука: %s", e)
+            sys.exit(1)
+
+    aiohttp_app.on_startup.append(on_startup)
+
+    # Запускаем aiohttp сервер.
     web.run_app(aiohttp_app, host='0.0.0.0', port=WEB_SERVER_PORT)
 
 
