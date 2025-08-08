@@ -202,9 +202,11 @@ async def main():
 
     # Добавляем маршрут для Web App (GET-запросы на корневой URL)
     server_app.router.add_get('/', web_app_handler)
+    logging.info("Добавлен маршрут GET / для Web App")
     
     # Добавляем маршрут для вебхука (POST-запросы на WEBHOOK_PATH)
     server_app.router.add_post(WEBHOOK_PATH, telegram_webhook_handler)
+    logging.info(f"Добавлен маршрут POST {WEBHOOK_PATH} для вебхука")
 
     # Сохраняем экземпляр Application в приложении Aiohttp
     server_app['bot_application'] = app
@@ -220,7 +222,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
     await site.start()
-    logging.info("Веб-сервер запущен.")
+    logging.info(f"Веб-сервер запущен на порту {PORT}")
 
     # Эта часть кода нужна, чтобы сервер продолжал работать
     # и не завершал процесс
