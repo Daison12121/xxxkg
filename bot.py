@@ -18,7 +18,8 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # Define web server settings
 PORT = int(os.getenv("PORT", "8000"))
-WEBHOOK_PATH = f'/{TOKEN}' # Use a specific path for the webhook for security
+# Use a specific path for the webhook for security. Telegram will send updates to this path.
+WEBHOOK_PATH = f'/{TOKEN}'
 
 # Web App HTML content
 WEB_APP_HTML = """
@@ -89,7 +90,10 @@ async def web_app_handler(request: web.Request) -> web.Response:
 
 # Handler for incoming Telegram webhooks
 async def telegram_webhook_handler(request: web.Request) -> web.Response:
-    """Handles incoming webhooks from Telegram."""
+    """
+    Handles incoming webhooks from Telegram.
+    This function will be called for all POST requests to the WEBHOOK_PATH.
+    """
     try:
         data = await request.json()
         update = Update.de_json(data, app.bot)
@@ -106,6 +110,7 @@ async def start_webapp_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("Ошибка: WEBHOOK_URL не установлен. Проверьте переменные окружения на Railway.")
         return
     
+    # The URL for the web app is the base URL without the webhook path
     webapp_url = WEBHOOK_URL.split(WEBHOOK_PATH)[0]
     keyboard = [
         [InlineKeyboardButton("Открыть Web App", web_app=WebAppInfo(url=webapp_url))]
@@ -136,13 +141,22 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("openweb", start_webapp_command))
     
-    # Configure and run the webhook server
+    # --- Изменения начинаются здесь ---
+    # Создаём Aiohttp-приложение, чтобы контролировать маршруты
+    server_app = web.Application()
+    
+    # Добавляем маршрут для Web App (GET-запросы на корневой URL)
+    server_app.router.add_get('/', web_app_handler)
+    
+    # Запускаем Application в режиме вебхука, используя созданный нами сервер
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=WEBHOOK_PATH.strip("/"),
-        webhook_url=WEBHOOK_URL
+        webhook_url=WEBHOOK_URL,
+        webhook_server=server_app # Передаем наш настроенный сервер
     )
+    # --- Изменения заканчиваются здесь ---
 
 if __name__ == '__main__':
     main()
