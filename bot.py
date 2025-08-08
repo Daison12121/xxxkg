@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import asyncio
 from aiohttp import web
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -132,7 +133,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Handles the /start command."""
     await update.message.reply_text("Привет! Я готов к работе. Используйте /openweb, чтобы открыть Web App.")
 
-def main():
+async def main():
     """Main function to run the bot."""
     
     if not all([TOKEN, WEBHOOK_URL]):
@@ -162,17 +163,27 @@ def main():
     # Сохраняем экземпляр Application в приложении Aiohttp
     server_app['bot_application'] = app
 
-    # Устанавливаем вебхук в Telegram
-    app.updater.start_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=WEBHOOK_PATH.strip("/"),
-        webhook_url=WEBHOOK_URL
-    )
+    # Устанавливаем вебхук в Telegram асинхронно
+    await app.bot.set_webhook(url=WEBHOOK_URL)
+    logging.info("Вебхук успешно установлен.")
 
     # Запускаем наш Aiohttp-сервер
-    web.run_app(server_app, port=PORT, host="0.0.0.0")
+    runner = web.AppRunner(server_app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    await site.start()
+    logging.info("Веб-сервер запущен.")
+
+    # Эта часть кода нужна, чтобы сервер продолжал работать
+    # и не завершал процесс
+    try:
+        while True:
+            await asyncio.sleep(3600)  # Спим час
+    finally:
+        await runner.cleanup()
+
     # --- Новая реализация заканчивается здесь ---
 
 if __name__ == '__main__':
-    main()
+    # Запускаем асинхронную main-функцию
+    asyncio.run(main())
