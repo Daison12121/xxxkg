@@ -15,7 +15,7 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-PORT = int(os.environ.get("PORT", 8000))
+PORT = int(os.environ.get("PORT", 8080))
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     logging.error("❌ BOT_TOKEN не найден в переменных окружения!")
