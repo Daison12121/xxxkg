@@ -20,7 +20,7 @@ if not TOKEN:
     logging.error("❌ BOT_TOKEN не найден в переменных окружения!")
     sys.exit(1)
 
-WEBHOOK_URL = f"https://{os.environ.get('RAILWAY_STATIC_URL', 'xxxkg-production.up.railway.app')}/{TOKEN}"
+WEBHOOK_URL = f"https://{os.environ.get('RAILWAY_STATIC_URL', 'xxxkg-production.up.railway.app')}/webhook"
 
 application = Application.builder().token(TOKEN).build()
 
@@ -39,17 +39,33 @@ application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
 @app.route("/")
 def home():
-    return "<h1>Flask сервер работает ✅</h1>", 200
+    logging.info("=== ПОЛУЧЕН ЗАПРОС НА ГЛАВНУЮ СТРАНИЦУ ===")
+    return f"""
+    <h1>🎉 FLASK СЕРВЕР РАБОТАЕТ!</h1>
+    <p><strong>Port:</strong> {PORT}</p>
+    <p><strong>Token:</strong> {TOKEN[:10]}...</p>
+    <p><strong>Webhook URL:</strong> {WEBHOOK_URL}</p>
+    <p><strong>Python:</strong> {sys.version}</p>
+    <hr>
+    <p><a href="/set_webhook">🔗 Установить вебхук</a></p>
+    <p><a href="/health">❤️ Health Check</a></p>
+    """, 200
 
 @app.route("/health")
 def health():
     return "OK", 200
 
-@app.route(f"/{TOKEN}", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
-    return "OK", 200
+    """Получение апдейтов от Telegram"""
+    try:
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        application.update_queue.put_nowait(update)
+        logging.info("✅ Получен апдейт от Telegram")
+        return "OK", 200
+    except Exception as e:
+        logging.error(f"❌ Ошибка обработки вебхука: {e}")
+        return "ERROR", 500
 
 @app.route("/set_webhook")
 def set_webhook_route():
